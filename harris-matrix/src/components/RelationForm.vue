@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
-import { addRelation, addLocus, locusLabel, state } from '../store'
+import { addRelation, addLocus, locusName, state } from '../store'
 import type { RelationKind, RelationLayer } from '../types'
 import { KIND_LABEL } from '../types'
 
@@ -63,11 +63,12 @@ async function submit(allowConflict = false) {
 }
 
 const cycleText = computed(() =>
-  cyclePath.value ? cyclePath.value.map(locusLabel).join(' → ') : '',
+  cyclePath.value ? cyclePath.value.map(locusName).join(' → ') : '',
 )
 
 // ---- 新增层位 ----
-const newId = ref('')
+const newTrench = ref('TG1')
+const newCode = ref('')
 const newLabel = ref('')
 const newKind = ref<keyof typeof KIND_LABEL>('layer')
 const locusError = ref('')
@@ -76,11 +77,12 @@ async function submitLocus() {
   locusError.value = ''
   try {
     await addLocus({
-      id: newId.value.trim(),
-      label: newLabel.value.trim() || newId.value.trim(),
+      trench: newTrench.value.trim() || 'TG1',
+      code: newCode.value.trim(),
+      label: newLabel.value.trim() || newCode.value.trim(),
       kind: newKind.value,
     })
-    newId.value = ''
+    newCode.value = ''
     newLabel.value = ''
   } catch (e) {
     locusError.value = (e as Error).message
@@ -107,14 +109,14 @@ async function submitLocus() {
       <select v-model="from">
         <option value="" disabled>晚的一方</option>
         <option v-for="l in locusOptions" :key="l.id" :value="l.id">
-          {{ l.id }} {{ l.label }}
+          {{ l.trench }}·{{ l.code }} {{ l.label }}
         </option>
       </select>
       <span class="arrow">{{ kind === 'association' ? '≈' : '→' }}</span>
       <select v-model="to">
         <option value="" disabled>早的一方</option>
         <option v-for="l in locusOptions" :key="l.id" :value="l.id">
-          {{ l.id }} {{ l.label }}
+          {{ l.trench }}·{{ l.code }} {{ l.label }}
         </option>
       </select>
     </div>
@@ -138,7 +140,8 @@ async function submitLocus() {
   <section class="panel">
     <h3>新增层位</h3>
     <div class="row">
-      <input v-model="newId" placeholder="编号（如 113）" class="narrow" />
+      <input v-model="newTrench" placeholder="探方" class="narrow" />
+      <input v-model="newCode" placeholder="编号（如 113）" class="narrow" />
       <input v-model="newLabel" placeholder="名称" />
       <select v-model="newKind">
         <option v-for="(label, k) in KIND_LABEL" :key="k" :value="k">
@@ -147,6 +150,7 @@ async function submitLocus() {
       </select>
     </div>
     <button @click="submitLocus">保存层位</button>
+    <div class="tip">编号体系按探方独立：{{ newTrench || 'TG1' }}·{{ newCode || '…' }} 与其他探方同号层位互不相同。</div>
     <div v-if="locusError" class="error">{{ locusError }}</div>
   </section>
 </template>
@@ -173,4 +177,5 @@ button.danger { border-color: #b0483a; background: #f6e0dc; color: #8a2a20; marg
   font-family: ui-monospace, monospace; font-size: 12px; margin-top: 4px;
   background: #fbeee6; border: 1px solid #e0b8a8; border-radius: 4px; padding: 4px 6px;
 }
+.tip { font-size: 11px; color: #8a7a55; margin-top: 4px; }
 </style>

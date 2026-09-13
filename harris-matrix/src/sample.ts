@@ -1,33 +1,52 @@
 import { commitBatch } from './store'
-import type { Change, Evidence, Locus, Relation } from './types'
+import type {
+  Change,
+  DatingEvidence,
+  Evidence,
+  Hypothesis,
+  HypothesisLink,
+  Locus,
+  Relation,
+} from './types'
 import { uid } from './db'
 
 /**
- * 示例工程：一个含切割事件、孤立层位与互相矛盾记录的探方。
- *
- * 地层故事（晚 → 早）：
- *   112 扰坑切割 101；111 为扰坑填土
- *   101 表土 → 102 踩踏面 → 103 灰坑填土 →(填充) 104 灰坑(切割) → 105 文化层
- *   105 → 106 房址地面 → 109 生土
- *   107 柱洞填土 →(填充) 108 柱洞(切割) → 106
- *   110 为探方外的孤立层位，无任何关系
- *   矛盾：观察记录同时存在「105 叠压 106」与「106 叠压 105」（后者留档为矛盾）
- *   同期：103 ≈ 107（出土物相似，仅为关联，不作有向边）
+ * 示例工程：两个编号体系独立的探方（TG1 / TG2），
+ * 含切割事件、孤立层位、互相矛盾的记录、测年证据，
+ * 以及两个互不污染的跨探方关联假设：
+ *   甲方案：TG2 灰烬层 ≈ TG1 文化层（年代兼容，可自洽）
+ *   乙方案：同号对应（TG1·105 ≈ TG2·105 年代无交集；柱洞≈地面 成环）
  */
 export async function loadSample() {
+  const L = (
+    trench: string,
+    code: string,
+    label: string,
+    kind: Locus['kind'],
+    note?: string,
+  ): Locus => ({ id: `${trench}:${code}`, trench, code, label, kind, note })
+
   const loci: Locus[] = [
-    { id: '101', label: '表土层', kind: 'layer' },
-    { id: '102', label: '踩踏面', kind: 'interface' },
-    { id: '103', label: '灰坑填土', kind: 'fill' },
-    { id: '104', label: '灰坑（切割）', kind: 'cut' },
-    { id: '105', label: '文化层', kind: 'layer' },
-    { id: '106', label: '房址地面', kind: 'interface' },
-    { id: '107', label: '柱洞填土', kind: 'fill' },
-    { id: '108', label: '柱洞（切割）', kind: 'cut' },
-    { id: '109', label: '生土层', kind: 'layer' },
-    { id: '110', label: '探方外孤立层', kind: 'layer', note: '未与主剖面建立关系' },
-    { id: '111', label: '扰坑填土', kind: 'fill' },
-    { id: '112', label: '晚期扰坑（切割）', kind: 'cut' },
+    // ---- TG1：主剖面探方 ----
+    L('TG1', '101', '表土层', 'layer'),
+    L('TG1', '102', '踩踏面', 'interface'),
+    L('TG1', '103', '灰坑填土', 'fill'),
+    L('TG1', '104', '灰坑（切割）', 'cut'),
+    L('TG1', '105', '文化层', 'layer'),
+    L('TG1', '106', '房址地面', 'interface'),
+    L('TG1', '107', '柱洞填土', 'fill'),
+    L('TG1', '108', '柱洞（切割）', 'cut'),
+    L('TG1', '109', '生土层', 'layer'),
+    L('TG1', '110', '探方外孤立层', 'layer', '未与主剖面建立关系'),
+    L('TG1', '111', '扰坑填土', 'fill'),
+    L('TG1', '112', '晚期扰坑（切割）', 'cut'),
+    // ---- TG2：独立编号的邻方（同号不同层位：TG2:105 ≠ TG1:105） ----
+    L('TG2', '101', '表土层', 'layer'),
+    L('TG2', '102', '扰动层', 'layer'),
+    L('TG2', '103', '灰烬层', 'layer'),
+    L('TG2', '104', '踩踏硬面', 'interface'),
+    L('TG2', '105', '文化层', 'layer', '与 TG1:105 同号但身份独立'),
+    L('TG2', '106', '生土层', 'layer'),
   ]
 
   const rel = (
@@ -49,23 +68,29 @@ export async function loadSample() {
   })
 
   const relations: Relation[] = [
-    rel('101', '102', 'observation', '东壁剖面直接叠压'),
-    rel('102', '103', 'observation', '踩踏面压灰坑填土'),
-    rel('103', '104', 'observation', '填土晚于坑口（填充关系）'),
-    rel('104', '105', 'observation', '坑壁打破文化层（切割事件）'),
-    rel('105', '106', 'observation', '文化层压房址地面'),
-    rel('106', '109', 'observation', '地面下即生土'),
-    rel('107', '108', 'observation', '柱洞填土晚于柱洞（填充关系）'),
-    rel('108', '106', 'observation', '柱洞打破房址地面（切割事件）'),
-    rel('111', '112', 'observation', '扰坑填土晚于扰坑（填充关系）'),
-    rel('112', '101', 'observation', '扰坑打破表土层（切割事件）'),
-    // 推断关系：由 102→103→104 与 103→104→105 传递得出，单独标注
-    rel('102', '104', 'inference', '由 102→103→104 传递推断'),
-    rel('103', '105', 'inference', '由 103→104→105 传递推断'),
+    // TG1 主剖面
+    rel('TG1:101', 'TG1:102', 'observation', '东壁剖面直接叠压'),
+    rel('TG1:102', 'TG1:103', 'observation', '踩踏面压灰坑填土'),
+    rel('TG1:103', 'TG1:104', 'observation', '填土晚于坑口（填充关系）'),
+    rel('TG1:104', 'TG1:105', 'observation', '坑壁打破文化层（切割事件）'),
+    rel('TG1:105', 'TG1:106', 'observation', '文化层压房址地面'),
+    rel('TG1:106', 'TG1:109', 'observation', '地面下即生土'),
+    rel('TG1:107', 'TG1:108', 'observation', '柱洞填土晚于柱洞（填充关系）'),
+    rel('TG1:108', 'TG1:106', 'observation', '柱洞打破房址地面（切割事件）'),
+    rel('TG1:111', 'TG1:112', 'observation', '扰坑填土晚于扰坑（填充关系）'),
+    rel('TG1:112', 'TG1:101', 'observation', '扰坑打破表土层（切割事件）'),
+    rel('TG1:102', 'TG1:104', 'inference', '由 102→103→104 传递推断'),
+    rel('TG1:103', 'TG1:105', 'inference', '由 103→104→105 传递推断'),
     // 矛盾记录：与「105 叠压 106」直接冲突，仍留档备查
-    rel('106', '105', 'observation', '第3次记录写作“106压105”，疑为笔误', 'conflicted'),
+    rel('TG1:106', 'TG1:105', 'observation', '第3次记录写作“106压105”，疑为笔误', 'conflicted'),
     // 同期关联：不构成有向边
-    rel('103', '107', 'observation', '出土陶片纹饰一致，疑同期', 'active', 'association'),
+    rel('TG1:103', 'TG1:107', 'observation', '出土陶片纹饰一致，疑同期', 'active', 'association'),
+    // TG2 剖面
+    rel('TG2:101', 'TG2:102', 'observation', '南壁剖面叠压'),
+    rel('TG2:102', 'TG2:103', 'observation', '扰动层压灰烬层'),
+    rel('TG2:103', 'TG2:104', 'observation', '灰烬层压踩踏硬面'),
+    rel('TG2:104', 'TG2:105', 'observation', '硬面压文化层'),
+    rel('TG2:105', 'TG2:106', 'observation', '文化层下即生土'),
   ]
 
   const evidence: Evidence[] = [
@@ -76,6 +101,62 @@ export async function loadSample() {
     { id: uid('e'), relationId: relations[13].id, type: 'note', text: '陶片比对卡 T-22' },
   ]
 
+  // ---- 测年证据：全库唯一一份，假设只引用 ----
+  const dat = (
+    locusId: string,
+    bpEarly: number | null,
+    bpLate: number | null,
+    source: string,
+    note?: string,
+  ): DatingEvidence => ({
+    id: uid('d'),
+    locusId,
+    bpEarly,
+    bpLate,
+    source,
+    note,
+    createdAt: Date.now(),
+  })
+  const dating: DatingEvidence[] = [
+    dat('TG1:105', 3300, 3100, 'BETA-5501', '炭样 ¹⁴C（文化层中部）'),
+    dat('TG2:103', 3280, 3050, 'BETA-5517', '炭样 ¹⁴C（灰烬层）'),
+    dat('TG2:105', 3600, 3400, 'TL-088', '陶片热释光'),
+    dat('TG1:109', 12000, 6000, 'OSL-012', '生土顶面光释光'),
+  ]
+
+  // ---- 两个互不污染的关联假设 ----
+  const h1: Hypothesis = {
+    id: uid('h'),
+    name: '甲方案：灰烬层≈文化层',
+    note: '按炭样年代重叠对应',
+    createdAt: Date.now(),
+  }
+  const h2: Hypothesis = {
+    id: uid('h'),
+    name: '乙方案：同号对应',
+    note: '按编号机械对应（用于检验）',
+    createdAt: Date.now(),
+  }
+  const link = (
+    hypothesisId: string,
+    members: string[],
+    note: string,
+  ): HypothesisLink => ({
+    id: uid('hl'),
+    hypothesisId,
+    members: [...members].sort(),
+    note,
+    createdAt: Date.now(),
+  })
+  const h1Links = [
+    link(h1.id, ['TG1:105', 'TG2:103'], '炭样区间重叠'),
+    link(h1.id, ['TG1:106', 'TG2:104'], '均为踩踏面'),
+  ]
+  const h2Links = [
+    link(h2.id, ['TG1:105', 'TG2:105'], '同号对应 → 年代无交集'),
+    link(h2.id, ['TG1:108', 'TG1:106'], '假定柱洞与地面同期 → 成环'),
+  ]
+
   const changes: Change[] = [
     ...loci.map((locus): Change => ({ type: 'add-locus', locus })),
     ...relations.map((relation): Change => ({
@@ -83,6 +164,9 @@ export async function loadSample() {
       relation,
       evidence: evidence.filter((e) => e.relationId === relation.id),
     })),
+    ...dating.map((d): Change => ({ type: 'add-dating', dating: d })),
+    { type: 'add-hypothesis', hypothesis: h1, links: h1Links },
+    { type: 'add-hypothesis', hypothesis: h2, links: h2Links },
   ]
-  await commitBatch('载入示例工程（含切割/孤立层/矛盾记录）', changes)
+  await commitBatch('载入示例工程（双探方/切割/孤立层/矛盾/测年/假设）', changes)
 }

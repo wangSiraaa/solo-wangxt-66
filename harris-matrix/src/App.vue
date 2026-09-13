@@ -1,19 +1,26 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { onMounted, provide, ref } from 'vue'
 import MatrixCanvas from './components/MatrixCanvas.vue'
 import RelationForm from './components/RelationForm.vue'
 import RelationList from './components/RelationList.vue'
 import BatchPanel from './components/BatchPanel.vue'
+import DatingPanel from './components/DatingPanel.vue'
+import HypothesisPanel from './components/HypothesisPanel.vue'
+import ComparePanel from './components/ComparePanel.vue'
 import { clearAll, reload, state } from './store'
 import { loadSample } from './sample'
 import { exportProject, importProject } from './io'
 
 const mode = ref<'raw' | 'simplified'>('raw')
+const tab = ref<'relations' | 'dating' | 'hypotheses' | 'compare'>('relations')
 const canvas = ref<InstanceType<typeof MatrixCanvas>>()
 const notice = ref('')
 const fileInput = ref<HTMLInputElement>()
 
 onMounted(reload)
+
+// 供各面板把成环/矛盾路径投到画布上
+provide('highlightCycle', (ids: string[]) => canvas.value?.highlightCycle(ids))
 
 function onCycle(ids: string[]) {
   canvas.value?.highlightCycle(ids)
@@ -37,7 +44,7 @@ async function onImportFile(ev: Event) {
   if (!res.ok) {
     notice.value = `导入失败：${res.error}`
   } else {
-    notice.value = `导入完成：${res.counts!.loci} 层位 / ${res.counts!.relations} 关系 / ${res.counts!.evidence} 证据；偏序校验${
+    notice.value = `导入完成：${res.counts!.loci} 层位 / ${res.counts!.relations} 关系 / ${res.counts!.evidence} 证据 / ${res.counts!.dating} 测年；偏序校验${
       res.orderPreserved ? '通过，偏序未改变 ✓' : '未通过 ✗'
     }`
   }
@@ -51,7 +58,8 @@ async function onClear() {
 
 async function onSample() {
   await loadSample()
-  notice.value = '示例工程已载入（含切割事件、孤立层位 110、矛盾记录 106↔105）。'
+  notice.value =
+    '示例工程已载入：TG1/TG2 双探方（含同号不同层位 105）、切割事件、孤立层 TG1·110、矛盾记录、4 条测年、甲乙两个关联假设。'
 }
 </script>
 
@@ -94,7 +102,16 @@ async function onSample() {
         <MatrixCanvas ref="canvas" :mode="mode" />
       </section>
       <aside class="right">
-        <RelationList />
+        <nav class="tabs">
+          <button :class="{ on: tab === 'relations' }" @click="tab = 'relations'">台账</button>
+          <button :class="{ on: tab === 'dating' }" @click="tab = 'dating'">测年</button>
+          <button :class="{ on: tab === 'hypotheses' }" @click="tab = 'hypotheses'">假设</button>
+          <button :class="{ on: tab === 'compare' }" @click="tab = 'compare'">对比</button>
+        </nav>
+        <RelationList v-if="tab === 'relations'" />
+        <DatingPanel v-else-if="tab === 'dating'" />
+        <HypothesisPanel v-else-if="tab === 'hypotheses'" />
+        <ComparePanel v-else />
       </aside>
     </main>
     <footer v-if="state.loaded">
@@ -102,7 +119,9 @@ async function onSample() {
       {{ state.relations.filter((r) => r.status === 'active' && r.kind === 'stratigraphic').length }} 有效有向关系 ·
       {{ state.relations.filter((r) => r.status === 'conflicted').length }} 矛盾 ·
       {{ state.relations.filter((r) => r.status === 'revoked').length }} 已撤销 ·
-      {{ state.evidence.length }} 证据
+      {{ state.evidence.length }} 证据 ·
+      {{ state.dating.length }} 测年 ·
+      {{ state.hypotheses.length }} 假设
     </footer>
   </div>
 </template>
@@ -133,9 +152,15 @@ h1 small { font-size: 12px; color: #8a7a55; font-weight: normal; margin-left: 8p
 }
 main {
   flex: 1; display: grid; gap: 12px; margin-top: 8px; min-height: 0;
-  grid-template-columns: 300px 1fr 320px;
+  grid-template-columns: 300px 1fr 340px;
 }
 .left, .right { overflow-y: auto; min-height: 0; }
 .center { min-height: 0; }
+.tabs { display: flex; gap: 4px; margin-bottom: 8px; }
+.tabs button {
+  flex: 1; font-size: 12px; padding: 4px 0; border-radius: 5px; cursor: pointer;
+  border: 1px solid #b0a480; background: #f4ecd6; color: #5a4f38;
+}
+.tabs button.on { background: #8a7a55; color: #fff; border-color: #8a7a55; }
 footer { font-size: 12px; color: #8a7a55; padding-top: 6px; }
 </style>

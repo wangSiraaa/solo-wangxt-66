@@ -7,7 +7,7 @@
     "dev": "vite",
     "build": "vue-tsc --noEmit && vite build",
     "preview": "vite preview",
-    "test": "esbuild test/logic.test.ts --bundle --platform=node --format=esm --outfile=node_modules/.cache/logic-test.mjs --banner:js=\"import { createRequire } from 'module'; const require = createRequire(import.meta.url);\" && node node_modules/.cache/logic-test.mjs"
+    "test": "esbuild test/logic.test.ts test/dating.test.ts test/store.test.ts --bundle --platform=node --format=esm --outdir=node_modules/.cache/tests --out-extension:.js=.mjs --banner:js=\"import { createRequire } from 'module'; const require = createRequire(import.meta.url);\" && node node_modules/.cache/tests/logic.test.mjs && node node_modules/.cache/tests/dating.test.mjs && node node_modules/.cache/tests/store.test.mjs"
   },
   "dependencies": {
     "cytoscape": "^3.30.2",
@@ -17,6 +17,7 @@
   },
   "devDependencies": {
     "@vitejs/plugin-vue": "^5.1.2",
+    "fake-indexeddb": "^6.2.5",
     "typescript": "^5.5.4",
     "vite": "^5.4.2",
     "vue-tsc": "^2.0.29"

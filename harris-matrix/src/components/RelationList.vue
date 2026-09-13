@@ -4,6 +4,7 @@ import {
   bulkRevoke,
   evidenceOf,
   locusLabel,
+  locusName,
   setRelationStatus,
   state,
 } from '../store'
@@ -21,8 +22,8 @@ const groups = computed(() => {
 
 const relText = (r: Relation) =>
   r.kind === 'association'
-    ? `${r.from} ${locusLabel(r.from)} ≈ ${r.to} ${locusLabel(r.to)}`
-    : `${r.from} ${locusLabel(r.from)} → ${r.to} ${locusLabel(r.to)}`
+    ? `${locusName(r.from)} ${locusLabel(r.from)} ≈ ${locusName(r.to)} ${locusLabel(r.to)}`
+    : `${locusName(r.from)} ${locusLabel(r.from)} → ${locusName(r.to)} ${locusLabel(r.to)}`
 
 async function revokeConflicted() {
   const ids = state.relations

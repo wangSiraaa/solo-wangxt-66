@@ -29,12 +29,21 @@ function render() {
   const hidden =
     props.mode === 'simplified' ? transitiveEdgeKeys(g) : new Set<string>()
 
+  // 探方配色（编号体系独立 → 用颜色区分身份来源）
+  const palette = ['#8a7a55', '#4a6a8a', '#7a4a6a', '#4a7a5a', '#8a5a2a']
+  const trenches = [...new Set(state.loci.map((l) => l.trench))].sort()
+  const tcolor = (t: string) => palette[trenches.indexOf(t) % palette.length]
+
   const elements: cytoscape.ElementDefinition[] = []
 
   for (const locus of state.loci) {
     const degree = g.hasNode(locus.id) ? g.degree(locus.id) : 0
     elements.push({
-      data: { id: locus.id, label: `${locus.id} ${locus.label}` },
+      data: {
+        id: locus.id,
+        label: `${locus.trench}·${locus.code} ${locus.label}`,
+        tcolor: tcolor(locus.trench),
+      },
       position: posOf(locus.id),
       classes: [`k-${locus.kind}`, degree === 0 ? 'isolated' : ''].join(' '),
     })
@@ -84,8 +93,10 @@ function highlightCycle(ids: string[]) {
       })
     }
   }
-  const nodes = ids.map((id) => `#${CSS.escape(id)}`).join(',')
-  if (nodes) cy.fit(cy.$(nodes), 60)
+  // 复合 id（含冒号）不走选择器，直接按 id 取元素拼集合
+  let col = cy.collection()
+  for (const id of ids) col = col.union(cy.getElementById(id))
+  if (col.length) cy.fit(col, 60)
 }
 
 defineExpose({ highlightCycle })
@@ -105,7 +116,7 @@ onMounted(() => {
           color: '#3a3126',
           'background-color': '#d8c9a3',
           'border-width': 2,
-          'border-color': '#8a7a55',
+          'border-color': 'data(tcolor)',
           width: 34,
           height: 34,
         },
